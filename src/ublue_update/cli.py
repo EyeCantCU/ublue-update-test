@@ -6,6 +6,7 @@ import logging
 import tomllib
 import argparse
 
+from update_checks.steam import steam_update_check
 from update_checks.system_update_check import system_update_check
 
 def check_for_updates(checks_failed: bool):
@@ -26,8 +27,10 @@ def check_for_updates(checks_failed: bool):
                 run_updates()
             )
             update_notif.show()
-        return 0
-    raise Exception(f"No updates available.")
+        return True
+    log.info(f"No updates available.")
+    return False
+
 
 def check_cpu_load():
     # get load average percentage in last 5 minutes:
@@ -66,7 +69,7 @@ def check_battery_status():
     }
 
 
-def check_inhibitors():
+def check_inhibitors(steam_update: bool):
 
     update_inhibitors = [
         check_network_status(),
@@ -83,11 +86,16 @@ def check_inhibitors():
 
     # log the failed update
     if update_checks_failed:
-        check_for_updates(update_checks_failed)
+        if not steam_update:
+            check_for_updates(update_checks_failed)
         # notify systemd that the checks have failed,
         # systemd will try to rerun the unit
         exception_log = "\n - ".join(failures)
-        raise Exception(f"update failed to pass checks: \n - {exception_log}")
+        if not steam_update:
+            raise Exception(f"update failed to pass checks: \n - {exception_log}")
+        else
+            log.info(f"update failed to pass checks: \n - {exception_log}")
+            exit(7)
 
 
 def load_config():
@@ -171,13 +179,19 @@ def main():
     parser.add_argument(
         "-c", "--check", action="store_true", help="run update checks and exit"
     )
+    parser.add_argument(
+        "-s", "--steam", action="store_true", help="run steam update checks and exit"
+    )
     args = parser.parse_args()
 
     if dbus_notify:
         notify2.init("ublue-update")
 
     if not args.force:
-        check_inhibitors()
+        if not args.steam:
+            check_inhibitors(False)
+        else:
+            steam_update_check()
 
     # system checks passed
     log.info("System passed all update checks")
