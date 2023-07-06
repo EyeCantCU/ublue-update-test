@@ -6,6 +6,28 @@ import logging
 import tomllib
 import argparse
 
+from update_checks.system_update_check import system_update_check
+
+def check_for_updates(checks_failed: bool):
+    """Tracks whether any updates are available"""
+    update_available = False
+    system_update_available = system_update_check()
+    if system_update_available:
+       update_available = True
+    if update_available:
+        if dbus_notify and checks_failed:
+            update_notif = notify2.Notification(
+                "System Updater",
+                f"Update available, but system checks failed. Install now?",
+                "notification-message-im")
+            update_notif.add_action(
+                "update-now",
+                "Update now",
+                run_updates()
+            )
+            update_notif.show()
+        return 0
+    raise Exception(f"No updates available.")
 
 def check_cpu_load():
     # get load average percentage in last 5 minutes:
@@ -61,6 +83,7 @@ def check_inhibitors():
 
     # log the failed update
     if update_checks_failed:
+        check_for_updates(update_checks_failed)
         # notify systemd that the checks have failed,
         # systemd will try to rerun the unit
         exception_log = "\n - ".join(failures)
